@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Web;
 
-namespace CrossWordGameServerProject.Models
+namespace CrossWordGameServer.Models
 {
     public class TourPlayer
     {
@@ -14,6 +14,6 @@ namespace CrossWordGameServerProject.Models
         public string name { get; set; }
         [JsonIgnore]
         public string levelsDone { get; set; }
-        public int levelsDoneCount { get; set; }
+        public int score { get; set; }
     }
 }

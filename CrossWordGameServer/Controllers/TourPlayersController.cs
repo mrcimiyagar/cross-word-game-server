@@ -1,5 +1,5 @@
-﻿using CrossWordGameServerProject.Helpers;
-using CrossWordGameServerProject.Models;
+﻿using CrossWordGameServer.Helpers;
+using CrossWordGameServer.Models;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -9,13 +9,13 @@ using System.Net.Http;
 using System.Web.Http;
 using System.Web.Mvc;
 
-namespace CrossWordGameServerProject.Controllers
+namespace CrossWordGameServer.Controllers
 {
     [OutputCacheAttribute(VaryByParam = "*", Duration = 0, NoStore = true)] // will be applied to all actions in MyController, unless those actions override with their own decoration
     public class TourPlayersController : ApiController
     {
         [System.Web.Http.HttpGet]
-        public IEnumerable<TourPlayer> ReadTourPlayers(string firstKey, string secondKey, string updateVersion)
+        public IEnumerable<TourPlayer> ReadTopTourPlayers(string firstKey, string secondKey, string updateVersion)
         {
             if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref updateVersion))
             {
@@ -37,11 +37,16 @@ namespace CrossWordGameServerProject.Controllers
                 {
                     if (SecurityHelper.checkPlayerKeys(firstKey, secondKey))
                     {
-                        string passkey = SecurityHelper.makeKey64();
+                        Tournament tournament = DatabaseHelper.GetTournamentData();
 
-                        DatabaseHelper.AddTourPlayer(passkey, name);
+                        if (tournament.active)
+                        {
+                            string passkey = SecurityHelper.makeKey64();
 
-                        return "success";
+                            DatabaseHelper.AddTourPlayer(passkey, name);
+
+                            return "success";
+                        }
                     }
                 }
             }
@@ -59,9 +64,14 @@ namespace CrossWordGameServerProject.Controllers
                 {
                     if (SecurityHelper.checkPlayerKeys(firstKey, secondKey))
                     {
-                        DatabaseHelper.DeleteTourPlayer(tourPlayerId);
+                        Tournament tournament = DatabaseHelper.GetTournamentData();
 
-                        return "success";
+                        if (tournament.active)
+                        {
+                            DatabaseHelper.DeleteTourPlayer(tourPlayerId);
+
+                            return "success";
+                        }
                     }
                 }
             }

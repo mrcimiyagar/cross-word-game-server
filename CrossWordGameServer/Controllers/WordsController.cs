@@ -11,10 +11,10 @@ using System.Web.Mvc;
 namespace CrossWordGameServer.Controllers
 {
     [OutputCacheAttribute(VaryByParam = "*", Duration = 0, NoStore = true)] // will be applied to all actions in MyController, unless those actions override with their own decoration
-    public class GameLevelsController : ApiController
+    public class WordsController : ApiController
     {
         [System.Web.Http.HttpGet]
-        public IEnumerable<GameLevel> ReadGameLevels(string firstKey, string secondKey, string updateVersion)
+        public IEnumerable<Word> ReadWords(string firstKey, string secondKey, string updateVersion)
         {
             try
             {
@@ -22,17 +22,17 @@ namespace CrossWordGameServer.Controllers
                 {
                     if (SecurityHelper.checkPlayerKeys(firstKey, secondKey) || SecurityHelper.checkAdminKeys(firstKey, secondKey))
                     {
-                        return DatabaseHelper.GetGameLevels();
+                        return DatabaseHelper.GetWords();
                     }
                 }
             }
             catch (Exception) { }
 
-            return new List<GameLevel>();
+            return new List<Word>();
         }
         
         [System.Web.Http.HttpGet]
-        public IEnumerable<int> ReadGameLevelIds(string firstKey, string secondKey, string updateVersion)
+        public IEnumerable<int> ReadWordIds(string firstKey, string secondKey, string updateVersion)
         {
             try
             {
@@ -40,7 +40,7 @@ namespace CrossWordGameServer.Controllers
                 {
                     if (SecurityHelper.checkPlayerKeys(firstKey, secondKey) || SecurityHelper.checkAdminKeys(firstKey, secondKey))
                     {
-                        return DatabaseHelper.GetGameLevelIds();
+                        return DatabaseHelper.GetWordIds();
                     }
                 }
             }
@@ -50,47 +50,29 @@ namespace CrossWordGameServer.Controllers
         }
 
         [System.Web.Http.HttpGet]
-        public string AddGameLevel(string firstKey, string secondKey, int number, int prize, string tableData, string questionData, string answerData)
+        public string AddWord(string firstKey, string secondKey, string word, string meaning)
         {
             try
             {
-                if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref tableData) && checkParam(ref questionData) && checkParam(ref answerData))
+                if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref word) && checkParam(ref meaning))
                 {
                     if (SecurityHelper.checkAdminKeys(firstKey, secondKey))
                     {
-                        DatabaseHelper.AddGameLevel(number, prize, tableData, questionData, answerData);
+                        DatabaseHelper.AddWord(word, meaning);
 
                         return "success";
                     }
                 }
             }
-            catch (Exception) { }
-
-            return "failure";
-        }
-
-        [System.Web.Http.HttpGet]
-        public string EditGameLevel(string firstKey, string secondKey, int gameLevelId, int number, int prize, string tableData, string questionData, string answerData)
-        {
-            try
-            {
-                if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref tableData) && checkParam(ref questionData) && checkParam(ref answerData))
-                {
-                    if (SecurityHelper.checkAdminKeys(firstKey, secondKey))
-                    {
-                        DatabaseHelper.EditGameLevel(gameLevelId, number, prize, tableData, questionData, answerData);
-
-                        return "success";
-                    }
-                }
+            catch (Exception ex) {
+                return JsonConvert.SerializeObject(ex);
             }
-            catch (Exception) { }
 
             return "failure";
         }
 
         [System.Web.Http.HttpGet]
-        public string DeleteGameLevel(string firstKey, string secondKey, int gameLevelId)
+        public string DeleteWord(string firstKey, string secondKey, int wordId)
         {
             try
             {
@@ -98,7 +80,7 @@ namespace CrossWordGameServer.Controllers
                 {
                     if (SecurityHelper.checkAdminKeys(firstKey, secondKey))
                     {
-                        DatabaseHelper.DeleteGameLevel(gameLevelId);
+                        DatabaseHelper.DeleteWord(wordId);
 
                         return "success";
                     }
