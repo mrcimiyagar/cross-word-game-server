@@ -85,10 +85,10 @@ by editing this MSBuild file. In order to learn more about this please visit htt
       <publishTime>10/24/2017 20:17:04</publishTime>
     </File>
     <File Include="bin/CrossWordGameServer.dll">
-      <publishTime>11/18/2017 19:01:15</publishTime>
+      <publishTime>12/09/2017 20:01:34</publishTime>
     </File>
     <File Include="bin/CrossWordGameServer.pdb">
-      <publishTime>11/18/2017 19:01:15</publishTime>
+      <publishTime>12/09/2017 20:01:34</publishTime>
     </File>
     <File Include="bin/EntityFramework.dll">
       <publishTime>09/11/2013 09:10:04</publishTime>

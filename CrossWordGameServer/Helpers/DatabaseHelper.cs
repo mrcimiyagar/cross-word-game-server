@@ -18,8 +18,7 @@ namespace CrossWordGameServer.Helpers
         private static object fileLockObj = new object();
 
         private static readonly DateTime Jan1st1970 = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-
+        
         private static SQLiteConnection dbConnection;
 
         private static string mapPath(string relativePath)
@@ -47,14 +46,17 @@ namespace CrossWordGameServer.Helpers
             new SQLiteCommand("create table if not exists GameLevels (id integer primary key autoincrement, number integer" +
                 ", prize integer, table_data text, question_data text, answer_data text);", dbConnection).ExecuteNonQuery();
 
-            new SQLiteCommand("create table if not exists TourPlayers (id integer primary key autoincrement, passkey text" +
-                ", name text, levels_done text, score integer);", dbConnection).ExecuteNonQuery();
+            new SQLiteCommand("create table if not exists TourPlayers (passkey text" +
+                ", name text, score integer);", dbConnection).ExecuteNonQuery();
 
             new SQLiteCommand("create table if not exists Messages (id integer primary key autoincrement, content text, " +
                 "time bigint);", dbConnection).ExecuteNonQuery();
 
             new SQLiteCommand("create table if not exists Words (id integer primary key autoincrement, word text, meaning " +
                 "text);", dbConnection).ExecuteNonQuery();
+
+            new SQLiteCommand("create table if not exists Tours (total_days integer, start_millis bigint);", dbConnection)
+                .ExecuteNonQuery();
         }
 
         public static void AddGameLevel(int number, int prize, string tableData, string questionData, string answerData)
@@ -140,7 +142,14 @@ namespace CrossWordGameServer.Helpers
 
         public static void StartTournament(int totalDays)
         {
-            lock (fileLockObj)
+            long currentMillis = Convert.ToInt64((DateTime.Now - DateTime.MinValue).TotalMilliseconds);
+
+            SQLiteCommand command0 = new SQLiteCommand("insert into Tours (total_days, start_millis) values (@param1, @param2);", dbConnection);
+            command0.Parameters.AddWithValue("@param1", totalDays);
+            command0.Parameters.AddWithValue("@param2", currentMillis);
+            command0.ExecuteNonQuery();
+
+            /*lock (fileLockObj)
             {
                 string[] tourData = File.ReadAllLines(mapPath(dbPath + fileDbName));
 
@@ -148,16 +157,69 @@ namespace CrossWordGameServer.Helpers
                 {
                     tourData[0] = "started";
                     tourData[1] = totalDays.ToString();
-                    tourData[2] = (DateTime.Now - DateTime.MinValue).TotalMilliseconds.ToString();
+                    tourData[2] = .ToString();
 
                     File.WriteAllLines(mapPath(dbPath + fileDbName), tourData);
                 }
-            }
+            }*/
         }
 
         public static Tournament GetTournamentData()
         {
-            string[] tourData = File.ReadAllLines(mapPath(dbPath + fileDbName));
+            Tournament tournament = null;
+
+            SQLiteCommand command0 = new SQLiteCommand("select * from Tours order by rowid desc limit 1", dbConnection);
+            SQLiteDataReader reader0 = command0.ExecuteReader();
+
+            if (reader0.Read())
+            {
+                long currentMillis = Convert.ToInt64((DateTime.Now - DateTime.MinValue).TotalMilliseconds);
+                
+                int totalDays = Convert.ToInt32(reader0["total_days"].ToString());
+                long startMillis = Convert.ToInt64(reader0["start_millis"].ToString());
+                int leftDays = totalDays - Convert.ToInt32((currentMillis - startMillis) / 86400000);
+                
+                if (leftDays > 0)
+                {
+                    SQLiteCommand command1 = new SQLiteCommand("select count(rowid) from TourPlayers", dbConnection);
+                    int playersCount = Convert.ToInt32(command1.ExecuteScalar());
+
+                    tournament = new Tournament()
+                    {
+                        active = true,
+                        playersCount = playersCount,
+                        totalDays = totalDays,
+                        leftDays = leftDays
+                    };
+                }
+                else
+                {
+                    tournament = new Tournament()
+                    {
+                        active = false,
+                        playersCount = 0,
+                        totalDays = 0,
+                        leftDays = 0
+                    };
+                }
+            }
+            else
+            {
+                tournament = new Tournament()
+                {
+                    active = false,
+                    playersCount = 0,
+                    totalDays = 0,
+                    leftDays = 0
+                };
+            }
+
+            reader0.Close();
+
+            return tournament;
+
+
+            /*string[] tourData = File.ReadAllLines(mapPath(dbPath + fileDbName));
             
             int totalDays = Convert.ToInt32(tourData[1]);
             double startMillis = Convert.ToDouble(tourData[2]);
@@ -182,7 +244,7 @@ namespace CrossWordGameServer.Helpers
                 totalDays = totalDays,
                 leftDays = leftDays,
                 playersCount = playersCount
-            };
+            };*/
         }
 
         public static void EndTournament()
@@ -200,14 +262,14 @@ namespace CrossWordGameServer.Helpers
             }
         }
 
-        public static void AddTourPlayer(string passkey, string name)
+        public static long AddTourPlayer(string passkey, string name)
         {
-            SQLiteCommand command0 = new SQLiteCommand("insert into TourPlayers (passkey, name, levels_done, levels_done_count) values (@param1, @param2, @param3, @param4);", dbConnection);
+            SQLiteCommand command0 = new SQLiteCommand("insert into TourPlayers (passkey, name, score) values (@param1, @param2, @param3); select last_insert_rowid();", dbConnection);
             command0.Parameters.AddWithValue("@param1", passkey);
             command0.Parameters.AddWithValue("@param2", name);
-            command0.Parameters.AddWithValue("@param3", "");
-            command0.Parameters.AddWithValue("@param4", 0);
-            command0.ExecuteNonQuery();
+            command0.Parameters.AddWithValue("@param3", 0);
+            long rowId = Convert.ToInt64(command0.ExecuteScalar());
+            return rowId;
         }
 
         public static void DeleteTourPlayer(int id)
@@ -221,18 +283,17 @@ namespace CrossWordGameServer.Helpers
         {
             List<TourPlayer> result = new List<TourPlayer>();
 
-            SQLiteCommand command0 = new SQLiteCommand("select * from TourPlayers order by levels_done_count desc", dbConnection);
+            SQLiteCommand command0 = new SQLiteCommand("select rowid, * from TourPlayers order by levels_done_count desc", dbConnection);
             SQLiteDataReader reader0 = command0.ExecuteReader();
 
             while (reader0.Read())
             {
                 TourPlayer tourPlayer = new TourPlayer()
                 {
-                    id = int.Parse(reader0["id"].ToString()),
+                    id = long.Parse(reader0["rowid"].ToString()),
                     passkey = (string)reader0["passkey"],
                     name = (string)reader0["name"],
-                    levelsDone = (string)reader0["levels_done"],
-                    score = int.Parse(reader0["levels_done_count"].ToString())
+                    score = int.Parse(reader0["score"].ToString())
                 };
 
                 result.Add(tourPlayer);
@@ -247,18 +308,17 @@ namespace CrossWordGameServer.Helpers
         {
             List<TourPlayer> result = new List<TourPlayer>();
 
-            SQLiteCommand command0 = new SQLiteCommand("select * from TourPlayers order by levels_done_count desc limit 20", dbConnection);
+            SQLiteCommand command0 = new SQLiteCommand("select rowid, * from TourPlayers order by score desc limit 20", dbConnection);
             SQLiteDataReader reader0 = command0.ExecuteReader();
 
             while (reader0.Read())
             {
                 TourPlayer tourPlayer = new TourPlayer()
                 {
-                    id = int.Parse(reader0["id"].ToString()),
+                    id = long.Parse(reader0["rowid"].ToString()),
                     passkey = (string)reader0["passkey"],
                     name = (string)reader0["name"],
-                    levelsDone = (string)reader0["levels_done"],
-                    score = int.Parse(reader0["levels_done_count"].ToString())
+                    score = int.Parse(reader0["score"].ToString())
                 };
 
                 result.Add(tourPlayer);
@@ -279,11 +339,10 @@ namespace CrossWordGameServer.Helpers
             {
                 TourPlayer tourPlayer = new TourPlayer()
                 {
-                    id = (int)reader0["id"],
-                    passkey = (string)reader0["passkey"],
-                    name = (string)reader0["name"],
-                    levelsDone = (string)reader0["levels_done"],
-                    score = (int)reader0["levels_done_count"]
+                    id = long.Parse(reader0["rowid"].ToString()),
+                    passkey = reader0["passkey"].ToString(),
+                    name = reader0["name"].ToString(),
+                    score = int.Parse(reader0["score"].ToString())
                 };
 
                 return tourPlayer;

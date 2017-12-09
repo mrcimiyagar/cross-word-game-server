@@ -15,6 +15,20 @@ namespace CrossWordGameServer.Controllers
     public class TourPlayersController : ApiController
     {
         [System.Web.Http.HttpGet]
+        public Tournament ReadTourData(string firstKey, string secondKey, string updateVersion)
+        {
+            if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref updateVersion))
+            {
+                if (SecurityHelper.checkAdminKeys(firstKey, secondKey) || SecurityHelper.checkPlayerKeys(firstKey, secondKey))
+                {
+                    return DatabaseHelper.GetTournamentData();
+                }
+            }
+
+            return new Tournament();
+        }
+
+        [System.Web.Http.HttpGet]
         public IEnumerable<TourPlayer> ReadTopTourPlayers(string firstKey, string secondKey, string updateVersion)
         {
             if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref updateVersion))
@@ -43,9 +57,9 @@ namespace CrossWordGameServer.Controllers
                         {
                             string passkey = SecurityHelper.makeKey64();
 
-                            DatabaseHelper.AddTourPlayer(passkey, name);
+                            long userId = DatabaseHelper.AddTourPlayer(passkey, name);
 
-                            return "success";
+                            return "success," + userId;
                         }
                     }
                 }
