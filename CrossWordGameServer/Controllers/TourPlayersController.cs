@@ -35,7 +35,9 @@ namespace CrossWordGameServer.Controllers
             {
                 if (SecurityHelper.checkAdminKeys(firstKey, secondKey) || SecurityHelper.checkPlayerKeys(firstKey, secondKey))
                 {
-                    return DatabaseHelper.GetTopTourPlayers();
+                    List<TourPlayer> topTourPlayers = DatabaseHelper.GetTopTourPlayers();
+
+                    return topTourPlayers;
                 }
             }
 
@@ -43,24 +45,54 @@ namespace CrossWordGameServer.Controllers
         }
 
         [System.Web.Http.HttpGet]
+        public TourPlayer ReadMyTourData(string firstKey, string secondKey, long id)
+        {
+            if (checkParam(ref firstKey) && checkParam(ref secondKey))
+            {
+                if (SecurityHelper.checkPlayerKeys(firstKey, secondKey) || SecurityHelper.checkAdminKeys(firstKey, secondKey))
+                {
+                    return DatabaseHelper.GetTourPlayerById(id);
+                }
+            }
+
+            return new TourPlayer();
+        }
+
+        [System.Web.Http.HttpGet]
         public string AddTourPlayer(string firstKey, string secondKey, string name)
+        {
+            if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref name))
+            {
+                if (SecurityHelper.checkPlayerKeys(firstKey, secondKey))
+                {
+                    Tournament tournament = DatabaseHelper.GetTournamentData();
+
+                    if (tournament.active)
+                    {
+                        string passkey = SecurityHelper.makeKey64();
+
+                        long userId = DatabaseHelper.AddTourPlayer(passkey, name);
+
+                        return "success" + "," + userId + "," + passkey;
+                    }
+                }
+            }
+
+            return "failure";
+        }
+
+        [System.Web.Http.HttpGet]
+        public string EditTourPlayer(string firstKey, string secondKey, long id, string passkey, string name, int score)
         {
             try
             {
-                if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref name))
+                if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref passkey) && checkParam(ref name) && id >= 0)
                 {
                     if (SecurityHelper.checkPlayerKeys(firstKey, secondKey))
                     {
-                        Tournament tournament = DatabaseHelper.GetTournamentData();
+                        DatabaseHelper.UpdateTourPlayerById(id, passkey, name, score);
 
-                        if (tournament.active)
-                        {
-                            string passkey = SecurityHelper.makeKey64();
-
-                            long userId = DatabaseHelper.AddTourPlayer(passkey, name);
-
-                            return "success," + userId;
-                        }
+                        return "success";
                     }
                 }
             }
@@ -70,7 +102,7 @@ namespace CrossWordGameServer.Controllers
         }
 
         [System.Web.Http.HttpGet]
-        public string DeleteTourPlayer(string firstKey, string secondKey, int tourPlayerId, string passkey)
+        public string DeleteTourPlayer(string firstKey, string secondKey, long tourPlayerId, string passkey)
         {
             try
             {
@@ -82,7 +114,7 @@ namespace CrossWordGameServer.Controllers
 
                         if (tournament.active)
                         {
-                            DatabaseHelper.DeleteTourPlayer(tourPlayerId);
+                            DatabaseHelper.DeleteTourPlayer(tourPlayerId, passkey);
 
                             return "success";
                         }

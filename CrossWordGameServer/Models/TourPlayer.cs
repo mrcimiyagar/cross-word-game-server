@@ -17,5 +17,7 @@ namespace CrossWordGameServer.Models
         public string name { get; set; }
         [DataMember]
         public int score { get; set; }
+        [DataMember]
+        public int rank { get; set; }
     }
 }
