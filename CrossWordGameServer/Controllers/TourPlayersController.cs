@@ -17,13 +17,17 @@ namespace CrossWordGameServer.Controllers
         [System.Web.Http.HttpGet]
         public Tournament ReadTourData(string firstKey, string secondKey, string updateVersion)
         {
-            if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref updateVersion))
+            try
             {
-                if (SecurityHelper.checkAdminKeys(firstKey, secondKey) || SecurityHelper.checkPlayerKeys(firstKey, secondKey))
+                if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref updateVersion))
                 {
-                    return DatabaseHelper.GetTournamentData();
+                    if (SecurityHelper.checkAdminKeys(firstKey, secondKey) || SecurityHelper.checkPlayerKeys(firstKey, secondKey))
+                    {
+                        return DatabaseHelper.GetTournamentData();
+                    }
                 }
             }
+            catch (Exception) { }
 
             return new Tournament();
         }
@@ -31,66 +35,88 @@ namespace CrossWordGameServer.Controllers
         [System.Web.Http.HttpGet]
         public IEnumerable<TourPlayer> ReadTopTourPlayers(string firstKey, string secondKey, string updateVersion)
         {
-            if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref updateVersion))
+            try
             {
-                if (SecurityHelper.checkAdminKeys(firstKey, secondKey) || SecurityHelper.checkPlayerKeys(firstKey, secondKey))
+                if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref updateVersion))
                 {
-                    List<TourPlayer> topTourPlayers = DatabaseHelper.GetTopTourPlayers();
+                    if (SecurityHelper.checkAdminKeys(firstKey, secondKey))
+                    {
+                        List<TourPlayer> topTourPlayers = DatabaseHelper.GetTopTourPlayers(true);
 
-                    return topTourPlayers;
+                        return topTourPlayers;
+                    }
+                    else if (SecurityHelper.checkPlayerKeys(firstKey, secondKey))
+                    {
+                        List<TourPlayer> topTourPlayers = DatabaseHelper.GetTopTourPlayers(false);
+
+                        return topTourPlayers;
+                    }
                 }
             }
+            catch (Exception) { }
 
             return new List<TourPlayer>();
         }
 
         [System.Web.Http.HttpGet]
-        public TourPlayer ReadMyTourData(string firstKey, string secondKey, long id)
+        public TourPlayer ReadMyTourData(string firstKey, string secondKey, long id, string passkey)
         {
-            if (checkParam(ref firstKey) && checkParam(ref secondKey))
+            try
             {
-                if (SecurityHelper.checkPlayerKeys(firstKey, secondKey) || SecurityHelper.checkAdminKeys(firstKey, secondKey))
+                if (checkParam(ref firstKey) && checkParam(ref secondKey))
                 {
-                    return DatabaseHelper.GetTourPlayerById(id);
+                    if (SecurityHelper.checkAdminKeys(firstKey, secondKey))
+                    {
+                        return DatabaseHelper.GetTourPlayerById(id);
+                    }
+                    else if (SecurityHelper.checkPlayerKeys(firstKey, secondKey))
+                    {
+                        return DatabaseHelper.GetTourPlayerById(id, passkey);
+                    }
                 }
             }
+            catch (Exception) { }
 
             return new TourPlayer();
         }
 
         [System.Web.Http.HttpGet]
-        public string AddTourPlayer(string firstKey, string secondKey, string name)
+        public string AddTourPlayer(string firstKey, string secondKey, string name, string accNum)
         {
-            if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref name))
+            try
             {
-                if (SecurityHelper.checkPlayerKeys(firstKey, secondKey))
+                if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref name) && checkParam(ref accNum))
                 {
-                    Tournament tournament = DatabaseHelper.GetTournamentData();
-
-                    if (tournament.active)
+                    if (SecurityHelper.checkPlayerKeys(firstKey, secondKey))
                     {
-                        string passkey = SecurityHelper.makeKey64();
+                        Tournament tournament = DatabaseHelper.GetTournamentData();
 
-                        long userId = DatabaseHelper.AddTourPlayer(passkey, name);
+                        if (tournament.active)
+                        {
+                            string passkey = SecurityHelper.makeKey64();
 
-                        return "success" + "," + userId + "," + passkey;
+                            long userId = DatabaseHelper.AddTourPlayer(passkey, name, accNum);
+
+                            return "success" + "," + userId + "," + passkey;
+                        }
                     }
                 }
             }
+            catch (Exception) { }
 
             return "failure";
         }
 
         [System.Web.Http.HttpGet]
-        public string EditTourPlayer(string firstKey, string secondKey, long id, string passkey, string name, int score)
+        public string EditTourPlayer(string firstKey, string secondKey, long id, string passkey, string name, int score, string accNum)
         {
             try
             {
-                if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref passkey) && checkParam(ref name) && id >= 0)
+                if (checkParam(ref firstKey) && checkParam(ref secondKey) && checkParam(ref passkey) && checkParam(ref name) && checkParam(ref accNum) && id >= 0)
                 {
                     if (SecurityHelper.checkPlayerKeys(firstKey, secondKey))
                     {
-                        DatabaseHelper.UpdateTourPlayerById(id, passkey, name, score);
+                        DatabaseHelper.UpdateTourPlayerById(id, passkey, name, score, accNum);
 
                         return "success";
                     }

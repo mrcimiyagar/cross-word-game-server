@@ -13,6 +13,11 @@ namespace CrossWordGameServer.Helpers
         private static string dbPath = "";
 
         private static string sqlDbName = @"\GameLevels.sqlite";
+        private static string fileDbName = @"\Guide.txt";
+        private static string storeCoinPackFile = @"\StoreCoinPack.txt";
+        private static string helpCoinPackFile = @"\HelpCoinPack.txt";
+
+        private static object fileDbLock = new object();
 
         private static SortedList<int, Dictionary<long, TourPlayer>> highscores;
 
@@ -36,6 +41,23 @@ namespace CrossWordGameServer.Helpers
                 Directory.CreateDirectory(mapPath(dbPath));
             }
 
+            if (!File.Exists(mapPath(dbPath + fileDbName)))
+            {
+                File.CreateText(mapPath(dbPath + fileDbName)).Close();
+            }
+
+            if (!File.Exists(mapPath(dbPath + storeCoinPackFile)))
+            {
+                File.CreateText(mapPath(dbPath + storeCoinPackFile)).Close();
+                File.WriteAllText(mapPath(dbPath + storeCoinPackFile), "100");
+            }
+
+            if (!File.Exists(mapPath(dbPath + helpCoinPackFile)))
+            {
+                File.CreateText(mapPath(dbPath + helpCoinPackFile)).Close();
+                File.WriteAllText(mapPath(dbPath + helpCoinPackFile), "100");
+            }
+
             dbConnection = new SQLiteConnection(@"Data Source=" + System.Web.HttpContext.Current.Server.MapPath(dbPath + sqlDbName) + ";Version=3;");
             dbConnection.Open();
 
@@ -43,7 +65,7 @@ namespace CrossWordGameServer.Helpers
                 ", prize integer, table_data text, question_data text, answer_data text);", dbConnection).ExecuteNonQuery();
 
             new SQLiteCommand("create table if not exists TourPlayers (passkey text" +
-                ", name text, score integer);", dbConnection).ExecuteNonQuery();
+                ", name text, score integer, accNum text);", dbConnection).ExecuteNonQuery();
 
             new SQLiteCommand("create table if not exists Messages (id integer primary key autoincrement, content text, " +
                 "time bigint);", dbConnection).ExecuteNonQuery();
@@ -65,6 +87,7 @@ namespace CrossWordGameServer.Helpers
                     id = Convert.ToInt64(reader0["rowid"].ToString()),
                     name = reader0["name"].ToString(),
                     passkey = reader0["passkey"].ToString(),
+                    accNum = reader0["accNum"].ToString(),
                     score = Convert.ToInt32(reader0["score"].ToString())
                 };
 
@@ -242,18 +265,62 @@ namespace CrossWordGameServer.Helpers
             
         }
 
-        public static long AddTourPlayer(string passkey, string name)
+        public static void ClearGuide()
         {
-            SQLiteCommand command0 = new SQLiteCommand("insert into TourPlayers (passkey, name, score) values (@param1, @param2, @param3); select last_insert_rowid();", dbConnection);
+            lock (fileDbLock)
+            {
+                File.WriteAllText(mapPath(dbPath + fileDbName), "");
+            }
+        }
+
+        public static void EditGuide(string guide)
+        {
+            lock (fileDbLock)
+            {
+                File.AppendAllText(mapPath(dbPath + fileDbName), guide);
+            }
+        }
+
+        public static string GetGuide()
+        {
+            string guide = File.ReadAllText(mapPath(dbPath + fileDbName));
+            return guide;
+        }
+
+        public static void EditStoreCoinPack(int coin)
+        {
+            File.WriteAllText(mapPath(dbPath + storeCoinPackFile), coin.ToString());
+        }
+
+        public static int GetStoreCoinPack()
+        {
+            return int.Parse(File.ReadAllText(mapPath(dbPath + storeCoinPackFile)));
+        }
+
+        public static void EditHelpCoinPack(int coin)
+        {
+            File.WriteAllText(mapPath(dbPath + helpCoinPackFile), coin.ToString());
+        }
+
+        public static int GetHelpCoinPack()
+        {
+            return int.Parse(File.ReadAllText(mapPath(dbPath + helpCoinPackFile)));
+        }
+
+        public static long AddTourPlayer(string passkey, string name, string accNum)
+        {
+            SQLiteCommand command0 = new SQLiteCommand("insert into TourPlayers (passkey, name, score, accNum) values (@param1, @param2, @param3, @param4); select last_insert_rowid();", dbConnection);
             command0.Parameters.AddWithValue("@param1", passkey);
             command0.Parameters.AddWithValue("@param2", name);
             command0.Parameters.AddWithValue("@param3", 0);
+            command0.Parameters.AddWithValue("@param4", accNum);
             long rowId = Convert.ToInt64(command0.ExecuteScalar());
 
             TourPlayer tourPlayer = new TourPlayer();
             tourPlayer.id = rowId;
             tourPlayer.name = name;
             tourPlayer.score = 0;
+            tourPlayer.accNum = accNum;
 
             lock (highscores)
             {
@@ -305,7 +372,7 @@ namespace CrossWordGameServer.Helpers
             return result;
         }
 
-        public static List<TourPlayer> GetTopTourPlayers()
+        public static List<TourPlayer> GetTopTourPlayers(bool highAccess)
         {
             List<TourPlayer> result = new List<TourPlayer>();
 
@@ -324,30 +391,28 @@ namespace CrossWordGameServer.Helpers
                     {
                         break;
                     }
+                    
+                    if (highAccess)
+                    {
+                        result.Add(tourPlayerPart.Value);
+                    }
+                    else
+                    {
+                        TourPlayer tourPlayer = new TourPlayer()
+                        {
+                            id = tourPlayerPart.Value.id,
+                            accNum = "",
+                            name = tourPlayerPart.Value.name,
+                            rank = 0,
+                            score = tourPlayerPart.Value.score
+                        };
 
-                    result.Add(tourPlayerPart.Value);
+                        result.Add(tourPlayer);
+                    }
 
                     playerCounter++;
                 }
             }
-
-            /*SQLiteCommand command0 = new SQLiteCommand("select rowid, * from TourPlayers order by score desc limit 20", dbConnection);
-            SQLiteDataReader reader0 = command0.ExecuteReader();
-
-            while (reader0.Read())
-            {
-                TourPlayer tourPlayer = new TourPlayer()
-                {
-                    id = long.Parse(reader0["rowid"].ToString()),
-                    passkey = (string)reader0["passkey"],
-                    name = (string)reader0["name"],
-                    score = int.Parse(reader0["score"].ToString())
-                };
-
-                result.Add(tourPlayer);
-            }
-
-            reader0.Close();*/
 
             return result;
         }
@@ -365,7 +430,8 @@ namespace CrossWordGameServer.Helpers
                     id = long.Parse(reader0["rowid"].ToString()),
                     passkey = reader0["passkey"].ToString(),
                     name = reader0["name"].ToString(),
-                    score = int.Parse(reader0["score"].ToString())
+                    score = int.Parse(reader0["score"].ToString()),
+                    accNum = reader0["accNum"].ToString()
                 };
 
                 reader0.Close();
@@ -407,60 +473,129 @@ namespace CrossWordGameServer.Helpers
             }
         }
 
-        public static void UpdateTourPlayerById(long id, string passkey, string name, int score)
+        public static TourPlayer GetTourPlayerById(long id, string passkey)
         {
-            lock (dbConnection)
+            SQLiteCommand command0 = new SQLiteCommand("select rowid, * from TourPlayers where rowid = @param1 and passkey = @param2", dbConnection);
+            command0.Parameters.AddWithValue("@param1", id);
+            command0.Parameters.AddWithValue("@param2", passkey);
+            SQLiteDataReader reader0 = command0.ExecuteReader();
+
+            if (reader0.Read())
             {
-                SQLiteCommand command0 = new SQLiteCommand("select * from TourPlayers where rowid = @param1 and passkey = @param2", dbConnection);
-                command0.Parameters.AddWithValue("@param1", id);
-                command0.Parameters.AddWithValue("@param2", passkey);
-                SQLiteDataReader reader0 = command0.ExecuteReader();
-
-                if (reader0.Read())
+                TourPlayer tourPlayer = new TourPlayer()
                 {
-                    int oldScore = Convert.ToInt32(reader0["score"].ToString());
+                    id = long.Parse(reader0["rowid"].ToString()),
+                    passkey = reader0["passkey"].ToString(),
+                    name = reader0["name"].ToString(),
+                    score = int.Parse(reader0["score"].ToString()),
+                    accNum = reader0["accNum"].ToString()
+                };
 
-                    SQLiteCommand command1 = new SQLiteCommand("update TourPlayers set score = @param1, name = @param2 where rowid = @param3 and passkey = @param4;", dbConnection);
-                    command1.Parameters.AddWithValue("@param1", score);
-                    command1.Parameters.AddWithValue("@param2", name);
-                    command1.Parameters.AddWithValue("@param3", id);
-                    command1.Parameters.AddWithValue("@param4", passkey);
-                    command1.ExecuteNonQuery();
-                    
-                    lock (highscores)
+                reader0.Close();
+
+                int rank = 1;
+
+                lock (highscores)
+                {
+                    foreach (KeyValuePair<int, Dictionary<long, TourPlayer>> chunk in highscores)
                     {
-                        TourPlayer tourPlayer;
-
-                        if (highscores.ContainsKey(oldScore))
+                        if (chunk.Key > tourPlayer.score)
                         {
-                            tourPlayer = highscores[oldScore][id];
-
-                            highscores[oldScore].Remove(id);
+                            rank += chunk.Value.Count;
                         }
-                        else
+                        else if (chunk.Key == tourPlayer.score)
                         {
-                            tourPlayer = new TourPlayer();
-                            tourPlayer.id = id;
-                        }
+                            foreach (int playerId in chunk.Value.Keys)
+                            {
+                                if (playerId == tourPlayer.id)
+                                {
+                                    break;
+                                }
 
-                        tourPlayer.name = name;
-                        tourPlayer.score = score;
-
-                        if (highscores.ContainsKey(score))
-                        {
-                            highscores[score].Add(id, tourPlayer);
-                        }
-                        else
-                        {
-                            Dictionary<long, TourPlayer> highscoreChunk = new Dictionary<long, TourPlayer>();
-
-                            highscoreChunk.Add(id, tourPlayer);
-                            highscores.Add(score, highscoreChunk);
+                                rank++;
+                            }
                         }
                     }
                 }
 
+                tourPlayer.rank = rank;
+
+                return tourPlayer;
+            }
+            else
+            {
                 reader0.Close();
+
+                return null;
+            }
+        }
+
+        public static void UpdateTourPlayerById(long id, string passkey, string name, int score, string accNum)
+        {
+            Tournament tournament = GetTournamentData();
+
+            if (tournament.active)
+            {
+
+                lock (dbConnection)
+                {
+                    SQLiteCommand command0 = new SQLiteCommand("select * from TourPlayers where rowid = @param1 and passkey = @param2", dbConnection);
+                    command0.Parameters.AddWithValue("@param1", id);
+                    command0.Parameters.AddWithValue("@param2", passkey);
+                    SQLiteDataReader reader0 = command0.ExecuteReader();
+
+                    if (reader0.Read())
+                    {
+                        int oldScore = Convert.ToInt32(reader0["score"].ToString());
+
+                        SQLiteCommand command1 = new SQLiteCommand("update TourPlayers set score = @param1, name = @param2 , accNum = @param3 where rowid = @param4 and passkey = @param5;", dbConnection);
+                        command1.Parameters.AddWithValue("@param1", score);
+                        command1.Parameters.AddWithValue("@param2", name);
+                        command1.Parameters.AddWithValue("@param3", accNum);
+                        command1.Parameters.AddWithValue("@param4", id);
+                        command1.Parameters.AddWithValue("@param5", passkey);
+                        command1.ExecuteNonQuery();
+
+                        lock (highscores)
+                        {
+                            TourPlayer tourPlayer;
+
+                            if (highscores.ContainsKey(oldScore))
+                            {
+                                tourPlayer = highscores[oldScore][id];
+
+                                highscores[oldScore].Remove(id);
+                            }
+                            else
+                            {
+                                tourPlayer = new TourPlayer();
+                                tourPlayer.id = id;
+                            }
+
+                            tourPlayer.name = name;
+                            tourPlayer.accNum = accNum;
+                            tourPlayer.score = score;
+
+                            if (highscores.ContainsKey(score))
+                            {
+                                highscores[score].Add(id, tourPlayer);
+                            }
+                            else
+                            {
+                                Dictionary<long, TourPlayer> highscoreChunk = new Dictionary<long, TourPlayer>();
+
+                                highscoreChunk.Add(id, tourPlayer);
+                                highscores.Add(score, highscoreChunk);
+                            }
+                        }
+                    }
+
+                    reader0.Close();
+                }
+            }
+            else
+            {
+                throw new Exception();
             }
         }
 
@@ -598,6 +733,5 @@ namespace CrossWordGameServer.Helpers
                 return y.CompareTo(x);
             }
         }
-
     }
 }
